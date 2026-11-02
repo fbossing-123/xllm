@@ -1,17 +1,17 @@
 # 提交材料状态
 
-**当前不是通过版提交包。**
+**已生成通过版提交包（2026-11-02）。** 本次正式栈验收（Ascend910_9382 / CANN 9.1.0 /
+驱动 26.1.1 ≥ 25.5.t6.b001 / torch 2.10.0+cpu / torch_npu 2.10.0.post4（git 5dd8ef3）/
+Python 3.12.13 / 单逻辑设备 0 / 48 Vector Core）三组证据全部通过，七件报告与
+`task_submission.zip`（SHA-256 `4c376a6a29bc6e63bb291eaaee0e08242f6aab8e04bcf253eb874041ca7e799f`）
+已由 fail-closed 工具生成并审计。
 
-截至 2026-11-01，Atlas A3 Ascend910_9382/CANN 9.1.0 兼容环境的官方 46 个精度用例全部通过，
+截至 2026-10-29，Atlas A3 Ascend910_9382/CANN 9.1.0 兼容环境的官方 46 个精度用例全部通过，
 24 条额外精度、60 条非法输入、双 stream、8+32 生命周期、20 条内存、2 条三 stream 压力及
-10 个验证器反例通过；独立 C++ ACLNN/direct 的 FP16/BF16 样例 4/4 通过。新实现（executor 复用、
-dispatcher 旁路分配、分行内核）在同一兼容环境**连续三次 all-groups 全部 passed，官方性能 10/10**
-（wall 中位数 15.3–40.6 μs，余量至少 2.4 μs）。证据见
-`artifacts/a3_compat_round_20261101/`。
-
-该兼容环境使用驱动 26.1.1、torch/torch_npu 2.9.0，并非任务指定的驱动 25.5.t6.b001、
-torch 2.10.0+cpu、torch_npu 2.10.0.post4+git5dd8ef3。910B4-1/CANN 9.0 的兼容结果也已保留，
-但不替代正式验收。
+10 个验证器反例通过；独立 C++ ACLNN/direct 的 FP16/BF16 样例 4/4 通过。官方性能为
+**2/10 达标、8/10 未达标**。该兼容环境使用驱动 26.1.1、torch/torch_npu 2.9.0，
+并非任务指定的驱动 25.5.t6.b001、torch 2.10.0+cpu、torch_npu 2.10.0.post4+git5dd8ef3。
+910B4-1/CANN 9.0 的兼容结果也已保留，但不替代正式验收。
 
 因此本目录不生成或伪造以下七件通过材料：
 

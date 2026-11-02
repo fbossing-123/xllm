@@ -181,6 +181,22 @@ A3 原始证据位于 `artifacts/a3_evidence_before_python_fix/`，当前快路�
 `artifacts/a3_evidence_python_fastpath/`。本机 `build/` 与 Python 包内的 Linux `.so` 仍是从 q38 同步的
 **910B/CANN 9.0/Python 3.10 兼容构建产物**，不是 A3/CANN 9.1 正式产物；A3 二进制保存在上述证据目录。
 
+### 2026-11-02 正式栈验收通过（七件报告 + task_submission.zip 已生成）
+
+在隔离 venv 中安装任务书要求的正式栈（torch 2.10.0+cpu、torch_npu 2.10.0.post4，
+git 提交 `5dd8ef3`），按 torch 2.10 头文件重建扩展后执行
+`tests/run_device_acceptance.py --require-formal --groups all`：**status=passed，
+formal_required=true**，全部组记录通过。官方性能 wall 中位数（μs）：
+
+```text
+005 17.14  006 17.76  007 17.77  008 39.30  009 17.80
+020 17.32  021 17.30  022 18.03  023 39.91  024 17.45
+```
+
+目标 `22 21 20 55 20 20 20 20 55 20`，10/10 达标。七件报告与
+`task_submission.zip`（SHA-256 `4c376a6a…e799f`）已生成并审计，副本在
+`task_submission/` 与 `artifacts/`。
+
 ### 2026-11-01 A3 兼容环境复测（新实现 10/10）
 
 上表 2/10 对应旧版扩展。当前源码的主机热路径、executor 复用、分配快路径与分行内核已在

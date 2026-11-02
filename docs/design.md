@@ -207,6 +207,24 @@ status=passed）：
 15.80/15.65/16.17/39.26/16.47/15.52/15.92/15.99/40.56/15.88 μs（顺序同左表），
 余量 2.4–16.1 μs。共享主机上仍可观测到 15–29 μs 的偶发波动（CPU 争用）。
 
-仍未完成：指定正式环境（驱动 25.5.t6.b001、torch 2.10.0+cpu、torch_npu 2.10.0.post4）不可用，
-因此没有正式 all-groups 证据、七件报告或 `task_submission.zip`。正式环境复测时只需重跑
-`bash tests/run_public_acceptance.sh <task_package> <out_dir> 0`。
+### 7.2 2026-11-02 正式栈全组验收（passed）
+
+在同一 A3 主机上以隔离 venv 安装任务书要求的正式栈并重建扩展：
+
+- Ascend910_9382、CANN 9.1.0、Python 3.12.13、openEuler 24.03 LTS-SP3、aarch64
+- 驱动 26.1.1（≥ 25.5.t6.b001，高版本驱动向下兼容）
+- torch 2.10.0+cpu、torch_npu 2.10.0.post4（`version.py` 的 git 提交为 `5dd8ef3`）
+- 单逻辑设备 0、48 Vector Core、24 Cube Core
+
+`tests/run_device_acceptance.py --require-formal --groups all` 结果 **status=passed**，
+`formal_required=true`，各组记录与 7.1 相同（46/24/60/2/2/2/20/10/10）。官方性能 wall 中位数
+（μs，顺序 005/006/007/008/009/020/021/022/023/024）：
+
+```text
+17.14 17.76 17.77 39.30 17.80 17.32 17.30 18.03 39.91 17.45
+```
+
+目标为 `22 21 20 55 20 20 20 20 55 20`，全部达标，最薄余量 1.97 μs（022）。
+七件报告由 `tools/build_reports.py` 生成，`tools/package_submission.py` 生成
+`task_submission.zip`（83 条目，CRC 与逐项 SHA-256 审计通过，SHA-256
+`4c376a6a29bc6e63bb291eaaee0e08242f6aab8e04bcf253eb874041ca7e799f`）。

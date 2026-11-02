@@ -11,3 +11,6 @@ __pycache__/
 *.so
 HANDOFF.html
 .venv*/
+task_submission/*.xlsx
+task_submission/*.log
+task_submission/manifest.json
