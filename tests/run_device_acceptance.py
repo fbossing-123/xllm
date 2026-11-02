@@ -514,6 +514,7 @@ def run_memory(torch, solution, verifier, cases, manifest, raw_dir):
                         "output_bytes": output_bytes, "allowed_delta_bytes": output_bytes + 16 * 1024,
                         "active_bytes_after_20_releases": active_after_release}
             records.append(guarded_record({"case_id": case["case_name"], "entry": entry,
+                                           "input_shape": f"[{n},{h}]", "dtype": dtype,
                                            "release_loops": MEMORY_RELEASE_LOOPS,
                                            "started_at_utc": utc_now()}, exercise))
             write_jsonl(raw_dir / "memory.jsonl", records)
@@ -535,6 +536,23 @@ def run_logged(command, raw_dir, name, cwd, env=None):
     return completed
 
 
+def case_metadata(task_root):
+    """Map case_name -> (shape string, dtype string) from the supplied case.json."""
+    path = Path(task_root) / "case.json"
+    if not path.is_file():
+        return {}
+    cases = json.loads(path.read_text(encoding="utf-8"))
+    meta = {}
+    for case in cases:
+        desc = (case.get("input_desc") or [{}])[0]
+        shape = desc.get("shape")
+        meta[case["case_name"]] = (
+            "[" + ",".join(str(int(dim)) for dim in shape) + "]" if shape is not None else "",
+            desc.get("data_type", ""),
+        )
+    return meta
+
+
 def run_official(project_root, task_root, solution_file, device, raw_dir,
                  run_accuracy=True, run_performance=True):
     env = os.environ.copy()
@@ -549,7 +567,12 @@ def run_official(project_root, task_root, solution_file, device, raw_dir,
         results.append(accuracy)
         if accuracy_report.is_file():
             report = json.loads(accuracy_report.read_text(encoding="utf-8"))
-            write_jsonl(raw_dir / "public_accuracy.jsonl", report.get("cases", []))
+            meta = case_metadata(task_root)
+            records = []
+            for item in report.get("cases", []):
+                shape, dtype = meta.get(item["case_name"], ("", ""))
+                records.append({**item, "input_shape": shape, "dtype": dtype})
+            write_jsonl(raw_dir / "public_accuracy.jsonl", records)
     if run_performance:
         performance_report = raw_dir / "performance.json"
         performance = run_logged([
@@ -564,8 +587,14 @@ def run_official(project_root, task_root, solution_file, device, raw_dir,
         results.extend((performance, acceptance))
         if performance_report.is_file():
             report = json.loads(performance_report.read_text(encoding="utf-8"))
-            records = [{"case_id": item["case_name"], "status": "passed" if performance.returncode == 0 else "failed",
-                        "results": item.get("results")} for item in report.get("cases", [])]
+            meta = case_metadata(task_root)
+            records = []
+            for item in report.get("cases", []):
+                shape, dtype = meta.get(item["case_name"], ("", ""))
+                records.append({"case_id": item["case_name"],
+                                "status": "passed" if performance.returncode == 0 else "failed",
+                                "results": item.get("results"),
+                                "input_shape": shape, "dtype": dtype})
             write_jsonl(raw_dir / "performance.jsonl", records)
     if any(result.returncode != 0 for result in results):
         raise RuntimeError("official public accuracy/performance validation failed; inspect command and stderr logs")
