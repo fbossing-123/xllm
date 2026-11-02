@@ -226,5 +226,4 @@ status=passed）：
 
 目标为 `22 21 20 55 20 20 20 20 55 20`，全部达标，最薄余量 1.97 μs（022）。
 七件报告由 `tools/build_reports.py` 生成，`tools/package_submission.py` 生成
-`task_submission.zip`（83 条目，CRC 与逐项 SHA-256 审计通过，SHA-256
-`4c376a6a29bc6e63bb291eaaee0e08242f6aab8e04bcf253eb874041ca7e799f`）。
+`task_submission.zip`（CRC 与逐项 SHA-256 审计通过，条目数与哈希见交付审计记录）。

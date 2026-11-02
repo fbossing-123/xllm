@@ -119,6 +119,14 @@ python tests/check_npu_outputs.py /tmp/daln_case_direct
 
 ## 测试
 
+开发依赖（只在离线测试与报告工具里需要，CANN 镜像默认不含）：
+
+```bash
+python -m pip install pytest openpyxl ml_dtypes
+```
+
+`ml_dtypes` 用于 bf16 用例的输入生成，`openpyxl` 用于生成七件 XLSX 报告。
+
 本机离线测试（无 NPU 时不执行真实 NPU 文件）：
 
 ```bash
@@ -194,7 +202,7 @@ formal_required=true**，全部组记录通过。官方性能 wall 中位数（�
 ```
 
 目标 `22 21 20 55 20 20 20 20 55 20`，10/10 达标。七件报告与
-`task_submission.zip`（SHA-256 `4c376a6a…e799f`）已生成并审计，副本在
+`task_submission.zip`（SHA-256 见交付审计记录）已生成并审计，副本在
 `task_submission/` 与 `artifacts/`。
 
 ### 2026-11-01 A3 兼容环境复测（新实现 10/10）

@@ -3,7 +3,7 @@
 **已生成通过版提交包（2026-11-02）。** 本次正式栈验收（Ascend910_9382 / CANN 9.1.0 /
 驱动 26.1.1 ≥ 25.5.t6.b001 / torch 2.10.0+cpu / torch_npu 2.10.0.post4（git 5dd8ef3）/
 Python 3.12.13 / 单逻辑设备 0 / 48 Vector Core）三组证据全部通过，七件报告与
-`task_submission.zip`（SHA-256 `4c376a6a29bc6e63bb291eaaee0e08242f6aab8e04bcf253eb874041ca7e799f`）
+`task_submission.zip`（SHA-256 见交付审计记录）
 已由 fail-closed 工具生成并审计。
 
 截至 2026-10-29，Atlas A3 Ascend910_9382/CANN 9.1.0 兼容环境的官方 46 个精度用例全部通过，
