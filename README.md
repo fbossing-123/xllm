@@ -114,6 +114,9 @@ examples/build/direct_dual_affine_layer_norm /tmp/daln_case_direct 0 float16 49 
 python tests/check_npu_outputs.py /tmp/daln_case_direct
 ```
 
+`examples/aclnn_dual_affine_layer_norm.h` 是构建生成的两阶段 ACLNN API 头文件参考副本；
+安装后的正式头文件位于 `$ASCEND_CUSTOM_OPP_PATH/op_api/include/`。
+
 `examples/build/lib` 必须加入加载路径，否则 direct 可执行文件找不到真实
 `libdual_affine_layer_norm_direct.so`。两个样例使用独立输出目录，避免后一次运行覆盖前一次输出。
 

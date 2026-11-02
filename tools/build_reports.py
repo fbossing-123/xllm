@@ -26,20 +26,6 @@ REQUIRED_REPORTS = (
 )
 ALL_GROUPS = {"accuracy", "extra", "invalid", "stream", "lifetime", "memory", "performance", "verifier"}
 
-# Reference wall times from the task book section 3.3 (microseconds).
-PERF_BASELINE_US = {
-    "DualAffineLayerNorm_005_float16_random": 33.49,
-    "DualAffineLayerNorm_006_float16_random": 33.45,
-    "DualAffineLayerNorm_007_float16_random": 32.31,
-    "DualAffineLayerNorm_008_float16_random": 66.64,
-    "DualAffineLayerNorm_009_float16_random": 31.69,
-    "DualAffineLayerNorm_020_bfloat16_random": 31.61,
-    "DualAffineLayerNorm_021_bfloat16_random": 34.57,
-    "DualAffineLayerNorm_022_bfloat16_random": 34.42,
-    "DualAffineLayerNorm_023_bfloat16_random": 67.47,
-    "DualAffineLayerNorm_024_bfloat16_random": 31.91,
-}
-
 ACCURACY_HEADERS = ["shape", "dtype", "精度是否通过", "Ascend截图（单个用例或全部执行通过的截图均可）", "解释说明"]
 PERFORMANCE_HEADERS = ["shape", "dtype", "性能是否通过", "Ascend截图（单个用例或全部执行通过的截图均可）",
                        "标杆算子性能(us)", "Ascend C算子性能(us)", "rato", "解释说明"]
@@ -151,6 +137,13 @@ def validate_evidence(run_dir, project_root=None):
     if acceptance.get("status") != "passed" or len(acceptance.get("checks", [])) != 10:
         raise ValueError("official performance acceptance did not pass all 10 cases")
     evidence["performance_acceptance"] = acceptance
+    baselines = read_jsonl(raw / "baseline.jsonl")
+    if len(baselines) != 10 or any(not record.get("selected") or not record.get("baseline_wall_us_median")
+                                   for record in baselines):
+        raise ValueError("same-machine baseline measurement is missing or incomplete")
+    if {record.get("case_id") for record in baselines} != {record.get("case_id") for record in evidence["performance"]}:
+        raise ValueError("baseline cases do not match the performance cases")
+    evidence["baselines"] = {record["case_id"]: record for record in baselines}
     commands = {}
     for name in ("public_accuracy", "performance", "check_performance"):
         command = read_json(raw / f"{name}.command.json")
@@ -261,24 +254,34 @@ def build_performance_report(path, evidence, environment, measured):
         "性能测试总结：\n"
         f"             1、测试环境描述：{environment_line(environment)}\n"
         f"             2、测试用例{len(checks)}条，通过{passed}条\n"
-        "             3、协议为预热 50 次、5 轮、每轮 200 次，取 wall 轮均中位数；同机存在 CPU 争用时\n"
-        "                整组 wall 会抬升约 2-3us，结论以安静窗口的完整运行和原始轮次为准\n"
+        "             3、协议为预热 50 次、5 轮、每轮 200 次，取 wall 轮均中位数；锚点基线（两次 LayerNorm /\n"
+        "                共享 FP32 统计量组合）在同一 NPU、相同输入下重新测量，取较快且通过精度的候选；\n"
+        "                同机存在 CPU 争用时整组 wall 会抬升约 2-3us，结论以安静窗口的完整运行和原始轮次为准\n"
         "             4、测试满足任务书 3.3 的 10 个用例绝对 wall 上限（22/21/20/55/20/20/20/20/55/20 us）"
     )
     rows = []
     for check in checks:
         record = measured.get(check["case_name"], {})
-        baseline = PERF_BASELINE_US.get(check["case_name"])
+        baseline_record = evidence["baselines"].get(check["case_name"], {})
+        baseline = baseline_record.get("baseline_wall_us_median")
+        selected = baseline_record.get("selected")
         ours = check.get("wall_us_median")
         row_index = 4 + len(rows)
         ratio = f"=F{row_index}/E{row_index}" if baseline else ""
         custom = (record.get("results") or {}).get("custom", {})
-        explanation = (f"目标任务上限 {check.get('max_wall_us')} us；wall 中位数 {ours:.3f} us；"
-                       f"device event 中位数 {custom.get('device_event_us_median', float('nan')):.3f} us；"
-                       f"五轮 {[round(value, 3) for value in custom.get('wall_us_rounds', [])]}")
+        limit = check.get("max_wall_us")
+        candidates = "；".join(
+            f"{item['name']}={item['timing']['wall_us_median']:.3f}us({item['accuracy']})"
+            if item.get("timing") else f"{item['name']}=未测({item['accuracy']})"
+            for item in baseline_record.get("candidates", []))
+        explanation = (f"目标任务上限 {limit} us；同机实测基线 {baseline:.3f} us（{selected}，为较快合格基线）；"
+                       f"耗时比 {ours / baseline:.3f} ≤ 上限 {limit / baseline:.3f}；"
+                       f"提交实现 wall 中位数 {ours:.3f} us，device event 中位数 "
+                       f"{custom.get('device_event_us_median', float('nan')):.3f} us；"
+                       f"五轮 {[round(value, 3) for value in custom.get('wall_us_rounds', [])]}；候选：{candidates}")
         rows.append([record.get("input_shape", ""), record.get("dtype", ""),
                      "通过" if check.get("status") == "passed" else "未通过", "",
-                     baseline if baseline is not None else "", round(ours, 6), ratio, explanation])
+                     round(baseline, 6), round(ours, 6), ratio, explanation])
     workbook = Workbook()
     workbook.remove(workbook.active)
     add_summary_sheet(workbook, "性能", summary, PERFORMANCE_HEADERS, rows, WIDTHS["performance"])
@@ -300,8 +303,9 @@ def build_memory_report(path, evidence, environment):
         "内存测试总结：\n"
         f"             1、测试环境描述：{environment_line(environment)}\n"
         f"             2、测试记录{len(memory)}条（10 个 performance 用例 x run/run_direct），通过{passed}条\n"
-        "             3、显式 workspace 为 0；活跃分配峰值增量不超过两路输出字节加 16KiB 对齐余量；\n"
-        "                每条记录执行 20 次释放并同步后回到调用前基线\n"
+        "             3、片上缓冲为 x 整行、4 个参数分片与 z/tmp0/tmp1 三块 FP32 工作区，共\n"
+        "                14*alignedH + 8*sliceAligned 字节（H=8192 且单核整行时 180224 字节）；显式 workspace 为 0；\n"
+        "                活跃分配峰值增量不超过两路输出字节加 16KiB 对齐余量，每条记录 20 次释放后回到基线\n"
         "             4、任务书未提供标杆算子内存基线，因此标杆列记为 N/A，比值不适用"
     )
     rows = []
@@ -359,6 +363,16 @@ def build_reports(run_dir, output_dir, project_root=None):
         f"- `{name}`: `{' '.join(command['command'])}` (exit 0; stdout/stderr preserved under raw/)"
         for name, command in evidence["commands"].items()
     )
+
+    import hashlib
+
+    def digest(name):
+        return hashlib.sha256((raw / name).read_bytes()).hexdigest()
+
+    environment_sha = digest("environment.jsonl")
+    source_sha = digest("source_fingerprints.json")
+    implementation_sha = digest("implementation_fingerprints.json")
+    task_sha = digest("task_fingerprints.json")
     steps = f"""# DualAffineLayerNorm 自验证步骤说明
 
 > 说明：以下步骤完整可复现。验收人员按此执行即可；所有命令都在项目根目录运行，
@@ -412,6 +426,15 @@ python "$TASK_ROOT/check_performance.py" --report performance.json
 本次正式运行已完整通过：46 个公开精度用例、24 条额外记录、60 条非法输入、双 stream、
 8+32 生命周期、三 stream 提前释放压力、10 个性能用例（10/10 达标）、10 用例 x 两入口内存回收
 和 10 个独立验证器反例。原始 JSONL、命令退出码、stdout/stderr、任务与交付指纹均保存于运行目录。
+
+### 环境与源码指纹
+
+- 环境记录 `raw/environment.jsonl`：SHA-256 `{environment_sha}`
+- 交付源码指纹 `raw/source_fingerprints.json`：SHA-256 `{source_sha}`
+- 实现与加载二进制指纹 `raw/implementation_fingerprints.json`：SHA-256 `{implementation_sha}`
+- 官方任务认证 `raw/task_fingerprints.json`：SHA-256 `{task_sha}`
+
+完整的交付清单、构建产物与加载二进制哈希见运行目录；本说明、七件报告和日志均出自同一次运行。
 
 ### 本次实际命令
 

@@ -51,6 +51,17 @@ def synthetic_evidence(tmp_path):
             for i in range(10)
         ],
     }), encoding="utf-8")
+    jsonl(raw / "baseline.jsonl", [
+        {"case_id": f"perf_{i}", "selected": "two_layer_norms", "baseline_wall_us_median": 20 + i,
+         "excluded": ["shared_fp32_statistics"],
+         "candidates": [
+             {"name": "two_layer_norms", "accuracy": "passed", "status": "passed",
+              "timing": {"wall_us_median": 20 + i}},
+             {"name": "shared_fp32_statistics", "accuracy": "passed", "status": "passed",
+              "timing": {"wall_us_median": 30 + i}},
+         ]}
+        for i in range(10)
+    ])
     jsonl(raw / "extra.jsonl", [
         {"case_id": f"extra_{i // 2}", "entry": "run" if i % 2 == 0 else "run_direct", "status": "passed"}
         for i in range(24)

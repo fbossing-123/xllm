@@ -553,6 +553,67 @@ def case_metadata(task_root):
     return meta
 
 
+def shared_fp32_statistics(torch, inputs, epsilon):
+    """Task book 3.3 baseline: one FP32 statistics pass plus two affine branches."""
+    x, g1, b1, g2, b2 = inputs
+    a = x.float()
+    centered = a - a.mean(dim=1, keepdim=True)
+    z = centered * torch.rsqrt((centered * centered).mean(dim=1, keepdim=True) + epsilon)
+    return ((z * g1.float() + b1.float()).to(x.dtype), (z * g2.float() + b2.float()).to(x.dtype))
+
+
+def run_baselines(torch, benchmark, verifier, cases, raw_dir):
+    """Measure both task book baselines on this NPU with the official protocol.
+
+    Each candidate must pass the accuracy check before its timing is kept; the
+    faster qualified candidate becomes the per-case baseline and the slower or
+    inaccurate one is recorded with its exclusion reason.
+    """
+    import torch.nn.functional as F
+
+    records = []
+    for case in cases:
+        arrays = verifier_generate.generate(case)
+        attrs = {attr["name"]: attr["value"] for attr in case["attr_desc"]}
+        epsilon = attrs.get("epsilon", 1e-5)
+        inputs = device_inputs(torch, case, arrays, f"npu:{torch.npu.current_device()}")
+        expected = verifier_golden.calculate(arrays, attrs)
+        x, g1, b1, g2, b2 = inputs
+        candidates = {
+            "two_layer_norms": lambda: (F.layer_norm(x, (x.shape[1],), g1, b1, epsilon),
+                                        F.layer_norm(x, (x.shape[1],), g2, b2, epsilon)),
+            "shared_fp32_statistics": lambda: shared_fp32_statistics(torch, inputs, epsilon),
+        }
+        entry = {"case_id": case["case_name"], "candidates": []}
+        for name, function in candidates.items():
+            item = {"name": name, "accuracy": "failed", "status": "failed", "timing": None}
+            try:
+                outputs = function()
+                torch.npu.synchronize()
+                verifier.compare(case, arrays, outputs, expected)
+                item["accuracy"] = "passed"
+                del outputs
+                item["timing"] = benchmark.measure(function, torch.npu)
+                item["status"] = "passed"
+            except Exception as error:
+                item["error"] = f"{type(error).__name__}: {error}"
+            entry["candidates"].append(item)
+        qualified = [item for item in entry["candidates"]
+                     if item["accuracy"] == "passed" and item["timing"]]
+        if qualified:
+            best = min(qualified, key=lambda item: item["timing"]["wall_us_median"])
+            entry["selected"] = best["name"]
+            entry["baseline_wall_us_median"] = best["timing"]["wall_us_median"]
+        else:
+            entry["selected"] = None
+            entry["baseline_wall_us_median"] = None
+        entry["excluded"] = [item["name"] for item in entry["candidates"] if item["name"] != entry["selected"]]
+        records.append(entry)
+        write_jsonl(raw_dir / "baseline.jsonl", records)
+        del inputs
+    return records
+
+
 def run_official(project_root, task_root, solution_file, device, raw_dir,
                  run_accuracy=True, run_performance=True):
     env = os.environ.copy()
@@ -664,6 +725,8 @@ def main(argv=None):
                 require_complete_records(
                     [dict(json.loads(line)) for line in (raw_dir / "performance.jsonl").read_text(encoding="utf-8").splitlines()],
                     manifest["performance"], ("case_id",))
+                baseline_cases = [cases_by_name[item["case_id"]] for item in manifest["performance"]]
+                run_baselines(torch, benchmark, verifier, baseline_cases, raw_dir)
         if "extra" in groups:
             run_extra(torch, solution, verifier, cases_by_name, manifest, raw_dir)
         if "invalid" in groups:
