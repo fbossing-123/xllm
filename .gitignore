@@ -1,0 +1,13 @@
+build/
+artifacts/
+rsi/
+wheels/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.superpowers/
+*.zip
+*.so
+HANDOFF.html
+.venv*/
