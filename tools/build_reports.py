@@ -266,8 +266,9 @@ def build_performance_report(path, evidence, environment, measured):
         baseline = baseline_record.get("baseline_wall_us_median")
         selected = baseline_record.get("selected")
         ours = check.get("wall_us_median")
-        row_index = 4 + len(rows)
-        ratio = f"=F{row_index}/E{row_index}" if baseline else ""
+        # A plain number, not a formula: validators that read cached values see
+        # an empty cell for openpyxl-written formulas.
+        ratio = round(ours / baseline, 6) if baseline else ""
         custom = (record.get("results") or {}).get("custom", {})
         limit = check.get("max_wall_us")
         candidates = "；".join(
