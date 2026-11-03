@@ -23,7 +23,7 @@ y2 = cast(z * gamma2 + beta2)
 每核加载一次两组仿射参数，逐行加载 x；两行统计使用两次 `ReduceSum`，没有跨核归约，
 也没有显式 GM workspace。`DataCopyPad`/`DataCopyExtParams` 处理非 32 字节对齐的 H。
 
-当 `N < 48` 且 `H >= 1024` 时，一行会拆到 `coresPerRow` 个核上执行：**每个核都从 GM 读取
+当 `N` 小于本平台 Vector Core 数（A3 为 48、A2 为 40）且 `H >= 1024` 时，一行会拆到 `coresPerRow` 个核上执行：**每个核都从 GM 读取
 整行 x 并独立重算同一份行均值/方差**，随后只对 `[slice*sliceH, slice*sliceH+count)` 这段
 做仿射和写回。因为每个核执行的指令和数据完全相同，FP32 统计量逐位一致；不需要跨核归约、
 原子累加或 GM workspace，内存验收的 workspace 仍为 0。N=2/H=8192 因此从 2 个核变为 32 个核，
@@ -64,7 +64,7 @@ endRow = min(firstRow + rowsPerCore, N)
 `N < 48` 时先按每个分片至少 512 个元素估算 `coresPerRow`，再按 64 对齐回算：
 
 ```text
-coresPerRow = min(coreNum / N, max(1, H / 512))     若 N < coreNum
+coresPerRow = max(1, min(coreNum / N, max(1, H / 512)))   若 N < coreNum
 sliceH      = ceil(H / coresPerRow) 向上取到 64 的倍数
 coresPerRow = ceil(H / sliceH)
 blockDim    = N * coresPerRow
